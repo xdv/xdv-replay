@@ -1,0 +1,14 @@
+﻿# XDV Replay Workspace Manifest
+
+[workspace]
+name = "xdv_replay"
+version = "0.1.0"
+description = "Deterministic replay engine for orchestration-faithful reconstruction."
+
+[sector]
+name = "xdv_replay"
+path = "src"
+
+[target.x64-pc-none]
+linker = "ld"
+linker_flags = ["-nostdlib", "-static"]
