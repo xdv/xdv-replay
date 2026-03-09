@@ -1,0 +1,165 @@
+// File: replay_tests.ds - This file is part of XDV
+// Copyright (c) 2026 Dust LLC, and Contributors
+// Description:
+//   xdv-replay: XDV-071 replay equivalence suite.
+
+forge XdvReplayTests {
+
+    const TEST_PASS: UInt32 = 0;
+    const TEST_FAIL: UInt32 = 1;
+
+    const STATUS_OK: UInt32 = 0;
+
+    proc K::expect_u32(actual: UInt32, expected: UInt32) {
+        if actual == expected {
+            return TEST_PASS;
+        } else {
+            return TEST_FAIL;
+        }
+    }
+
+    proc K::expect_u64(actual: UInt64, expected: UInt64) {
+        if actual == expected {
+            return TEST_PASS;
+        } else {
+            return TEST_FAIL;
+        }
+    }
+
+    proc K::combine(lhs: UInt32, rhs: UInt32) {
+        if lhs == TEST_PASS {
+            return rhs;
+        } else {
+            return TEST_FAIL;
+        }
+    }
+
+    proc K::test_trace_format_and_hash_chain() {
+        let h1 = XdvReplayTrace::K::trace_hash_next(0, 1, XdvReplayContracts::K::DOMAIN_K, 10, 1, 11, 21, XdvReplayContracts::K::EVENT_SCHED_DECISION, 77, 1000);
+        let h2 = XdvReplayTrace::K::trace_hash_next(h1, 2, XdvReplayContracts::K::DOMAIN_K, 10, 1, 11, 21, XdvReplayContracts::K::EVENT_RESOURCE_DECISION, 55, 1001);
+
+        let e1 = XdvReplayTrace::K::trace_entry_token(1, XdvReplayContracts::K::DOMAIN_K, 10, 1, 11, 21, XdvReplayContracts::K::EVENT_SCHED_DECISION, 77, 1000, 0, XdvReplayContracts::K::METADATA_STRUCTURED);
+        let e2 = XdvReplayTrace::K::trace_entry_token(2, XdvReplayContracts::K::DOMAIN_K, 10, 1, 11, 21, XdvReplayContracts::K::EVENT_RESOURCE_DECISION, 55, 1001, h1, XdvReplayContracts::K::METADATA_STRUCTURED);
+
+        let verify_h1 = XdvReplayTrace::K::verify_trace_chain_pair(0, 0, h1, 1, XdvReplayContracts::K::DOMAIN_K, 10, 1, 11, 21, XdvReplayContracts::K::EVENT_SCHED_DECISION, 77, 1000);
+        let verify_h2 = XdvReplayTrace::K::verify_trace_chain_pair(h1, h1, h2, 2, XdvReplayContracts::K::DOMAIN_K, 10, 1, 11, 21, XdvReplayContracts::K::EVENT_RESOURCE_DECISION, 55, 1001);
+
+        let key1 = XdvReplayTrace::K::trace_order_key(1000, 1, 1);
+        let key2 = XdvReplayTrace::K::trace_order_key(1001, 1, 2);
+        let order_ok = XdvReplayTrace::K::verify_trace_order(key1, key2);
+
+        let raw_q = XdvReplayTrace::K::trace_entry_token(3, XdvReplayContracts::K::DOMAIN_Q, 10, 1, 11, 21, XdvReplayContracts::K::EVENT_Q_MEASUREMENT, 55, 1002, h2, XdvReplayContracts::K::METADATA_RAW_STATE);
+
+        let t1 = expect_u32(verify_h1, STATUS_OK);
+        let t2 = expect_u32(verify_h2, STATUS_OK);
+        let t3 = expect_u32(order_ok, STATUS_OK);
+
+        let u1 = combine(t1, t2);
+        let u2 = combine(u1, t3);
+
+        if e1 == 0 {
+            return TEST_FAIL;
+        } else {
+            if e2 == 0 {
+                return TEST_FAIL;
+            } else {
+                if raw_q == 0 {
+                    return u2;
+                } else {
+                    return TEST_FAIL;
+                }
+            }
+        }
+    }
+
+    proc K::test_deterministic_reconstruction() {
+        let sched_ok = XdvReplayReconstruct::K::verify_scheduler_decision(5, 100, 5, 101, 100);
+        let sched_bad = XdvReplayReconstruct::K::verify_scheduler_decision(5, 100, 5, 101, 101);
+
+        let resource_ok = XdvReplayReconstruct::K::verify_resource_decision(10, 4, 3, XdvReplayReconstruct::K::ALLOC_ALLOW);
+        let resource_bad = XdvReplayReconstruct::K::verify_resource_decision(10, 9, 3, XdvReplayReconstruct::K::ALLOC_ALLOW);
+
+        let cap_ok = XdvReplayReconstruct::K::verify_capability_decision(XdvReplayContracts::K::DOMAIN_Q, XdvReplayContracts::K::CAP_SCOPE_Q, STATUS_OK);
+        let cap_bad = XdvReplayReconstruct::K::verify_capability_decision(XdvReplayContracts::K::DOMAIN_Q, XdvReplayContracts::K::CAP_SCOPE_K, STATUS_OK);
+
+        let fault_ok = XdvReplayReconstruct::K::verify_fault_escalation(1, 3, XdvReplayReconstruct::K::FAULT_ACTION_RETRY);
+        let fault_bad = XdvReplayReconstruct::K::verify_fault_escalation(1, 5, XdvReplayReconstruct::K::FAULT_ACTION_RETRY);
+
+        let trans_ok = XdvReplayReconstruct::K::domain_transition_order_ok(100, 101);
+        let trans_bad = XdvReplayReconstruct::K::domain_transition_order_ok(101, 100);
+
+        let t1 = expect_u32(sched_ok, STATUS_OK);
+        let t2 = expect_u32(resource_ok, STATUS_OK);
+        let t3 = expect_u32(cap_ok, STATUS_OK);
+        let t4 = expect_u32(fault_ok, STATUS_OK);
+        let t5 = expect_u32(trans_ok, STATUS_OK);
+
+        let u1 = combine(t1, t2);
+        let u2 = combine(u1, t3);
+        let u3 = combine(u2, t4);
+        let u4 = combine(u3, t5);
+
+        if sched_bad == STATUS_OK {
+            return TEST_FAIL;
+        } else {
+            if resource_bad == STATUS_OK {
+                return TEST_FAIL;
+            } else {
+                if cap_bad == STATUS_OK {
+                    return TEST_FAIL;
+                } else {
+                    if fault_bad == STATUS_OK {
+                        return TEST_FAIL;
+                    } else {
+                        if trans_bad == STATUS_OK {
+                            return TEST_FAIL;
+                        } else {
+                            return u4;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    proc K::test_replay_equivalence_suite() {
+        let mode_full = XdvReplayContracts::K::is_replay_mode_valid(XdvReplayContracts::K::MODE_FULL);
+        let mode_domain = XdvReplayContracts::K::is_replay_mode_valid(XdvReplayContracts::K::MODE_DOMAIN);
+        let mode_proc = XdvReplayContracts::K::is_replay_mode_valid(XdvReplayContracts::K::MODE_PROCESS);
+        let mode_cluster = XdvReplayContracts::K::is_replay_mode_valid(XdvReplayContracts::K::MODE_CLUSTER);
+
+        let merge1 = XdvReplayDistributed::K::distributed_merge_token(500, 1, 7, 500, 2, 7);
+        let merge2 = XdvReplayDistributed::K::distributed_merge_token(500, 1, 7, 500, 2, 7);
+        let order_ok = XdvReplayDistributed::K::verify_distributed_order(500, 1, 7, 500, 2, 7);
+        let order_bad = XdvReplayDistributed::K::verify_distributed_order(500, 2, 7, 500, 1, 7);
+
+        let t1 = expect_u32(mode_full, STATUS_OK);
+        let t2 = expect_u32(mode_domain, STATUS_OK);
+        let t3 = expect_u32(mode_proc, STATUS_OK);
+        let t4 = expect_u32(mode_cluster, STATUS_OK);
+        let t5 = expect_u64(merge1, merge2);
+        let t6 = expect_u32(order_ok, STATUS_OK);
+
+        let u1 = combine(t1, t2);
+        let u2 = combine(u1, t3);
+        let u3 = combine(u2, t4);
+        let u4 = combine(u3, t5);
+        let u5 = combine(u4, t6);
+
+        if merge1 == 0 {
+            return TEST_FAIL;
+        } else {
+            if order_bad == STATUS_OK {
+                return TEST_FAIL;
+            } else {
+                return u5;
+            }
+        }
+    }
+
+    proc K::run_all_tests() {
+        let t1 = test_trace_format_and_hash_chain();
+        let t2 = combine(t1, test_deterministic_reconstruction());
+        return combine(t2, test_replay_equivalence_suite());
+    }
+}

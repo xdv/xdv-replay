@@ -1,0 +1,93 @@
+// File: replay_trace.ds - This file is part of XDV
+// Copyright (c) 2026 Dust LLC, and Contributors
+// Description:
+//   xdv-replay: trace entry format and hash-chain helpers.
+
+forge XdvReplayTrace {
+
+    const STATUS_OK: UInt32 = 0;
+
+    proc K::trace_hash_next(hash_prev: UInt64, event_id: UInt64, domain: UInt64, process_id: UInt64, vhm_id: UInt64, capability_id: UInt64, resource_id: UInt64, event_type: UInt64, event_metadata: UInt64, logical_timestamp: UInt64) {
+        if event_id == 0 {
+            return 0;
+        } else {
+            let d = XdvReplayContracts::K::is_domain_valid(domain);
+            if d == STATUS_OK {
+                let e = XdvReplayContracts::K::is_event_type_valid(event_type);
+                if e == STATUS_OK {
+                    let t = XdvReplayContracts::K::is_timestamp_valid(logical_timestamp);
+                    if t == STATUS_OK {
+                        let mixed = (hash_prev * 97) + (event_id * 193) + (domain * 389) + (process_id * 17) + (vhm_id * 19) + (capability_id * 23) + (resource_id * 29) + (event_type * 31) + (event_metadata * 37) + logical_timestamp;
+                        return mixed - ((mixed / 1000000) * 1000000);
+                    } else {
+                        return 0;
+                    }
+                } else {
+                    return 0;
+                }
+            } else {
+                return 0;
+            }
+        }
+    }
+
+    proc K::trace_entry_token(event_id: UInt64, domain: UInt64, process_id: UInt64, vhm_id: UInt64, capability_id: UInt64, resource_id: UInt64, event_type: UInt64, event_metadata: UInt64, logical_timestamp: UInt64, hash_prev: UInt64, metadata_mode: UInt64) {
+        let exposure = XdvReplayContracts::K::validate_metadata_exposure(domain, metadata_mode);
+        if exposure == STATUS_OK {
+            let hash_current = trace_hash_next(hash_prev, event_id, domain, process_id, vhm_id, capability_id, resource_id, event_type, event_metadata, logical_timestamp);
+            if hash_current == 0 {
+                return 0;
+            } else {
+                return (logical_timestamp * 1000000000) + (event_id * 1000000) + (domain * 100000) + (process_id * 1000) + (event_type * 10) + (hash_current - ((hash_current / 10) * 10));
+            }
+        } else {
+            return 0;
+        }
+    }
+
+    proc K::trace_order_key(logical_timestamp: UInt64, node_id: UInt64, event_id: UInt64) {
+        let t = XdvReplayContracts::K::is_timestamp_valid(logical_timestamp);
+        if t == STATUS_OK {
+            if node_id == 0 {
+                return 0;
+            } else {
+                if event_id == 0 {
+                    return 0;
+                } else {
+                    return (logical_timestamp * 1000000000) + (node_id * 1000000) + event_id;
+                }
+            }
+        } else {
+            return 0;
+        }
+    }
+
+    proc K::verify_trace_chain_pair(expected_hash_prev: UInt64, actual_hash_prev: UInt64, actual_hash_current: UInt64, event_id: UInt64, domain: UInt64, process_id: UInt64, vhm_id: UInt64, capability_id: UInt64, resource_id: UInt64, event_type: UInt64, event_metadata: UInt64, logical_timestamp: UInt64) {
+        if expected_hash_prev == actual_hash_prev {
+            let recomputed = trace_hash_next(actual_hash_prev, event_id, domain, process_id, vhm_id, capability_id, resource_id, event_type, event_metadata, logical_timestamp);
+            if recomputed == actual_hash_current {
+                return STATUS_OK;
+            } else {
+                return XdvReplayContracts::K::STATUS_HASH_MISMATCH;
+            }
+        } else {
+            return XdvReplayContracts::K::STATUS_HASH_MISMATCH;
+        }
+    }
+
+    proc K::verify_trace_order(prev_order_key: UInt64, next_order_key: UInt64) {
+        if prev_order_key == 0 {
+            if next_order_key == 0 {
+                return XdvReplayContracts::K::STATUS_ORDER_MISMATCH;
+            } else {
+                return STATUS_OK;
+            }
+        } else {
+            if next_order_key > prev_order_key {
+                return STATUS_OK;
+            } else {
+                return XdvReplayContracts::K::STATUS_ORDER_MISMATCH;
+            }
+        }
+    }
+}

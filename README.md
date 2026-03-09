@@ -1,78 +1,66 @@
-﻿# XDV Replay
+# XDV Replay
 
 Version: 0.1.0
-Status: planned
+Status: active
 Language: Dust Programming Language (DPL)
 
 ## Specification Alignment
 
-Primary specification: XDV-071 in xdv-spec.
+Primary specification: XDV-071 in `xdv-spec`.
+
+Implemented focus for this milestone:
+
+1. Trace entry format and hash-chain verification.
+2. Deterministic reconstruction of scheduler/resource/capability/fault decisions.
+3. Replay equivalence suite for local and distributed paths.
 
 ## Purpose
 
 Deterministic replay engine for orchestration-faithful reconstruction.
 
-## Scope
+## Modules
 
-This project is responsible for:
+- `src/replay_contracts.ds`
+  Replay invariants, domain/event/mode validation, capability and isolation guards.
 
-- Implementing normative requirements defined by XDV-071.
-- Publishing deterministic behavior contracts for integration with xdv-os.
-- Providing reusable modules for cross-repo integration.
-- Supplying verification and conformance fixtures for regression control.
+- `src/replay_trace.ds`
+  Trace hash chaining, entry token format, ordering keys, and chain/order verification.
 
-## Planned Deliverables
+- `src/replay_reconstruct.ds`
+  Deterministic scheduler/resource/capability/fault reconstruction and verification.
 
-- trace-capture, replay-runner
-- Public APIs in src/
-- Test fixtures in tests/
-- Design and interface docs in docs/
+- `src/replay_distributed.ds`
+  Deterministic multi-node trace merge and distributed ordering verification.
 
-## Repository Layout
+- `src/replay_tests.ds`
+  Replay equivalence suite for trace/hash, reconstruction, and distributed parity.
 
-- src/ : core module implementations.
-- tests/ : deterministic unit/integration/conformance fixtures.
-- docs/ : architecture, protocol, and usage documentation.
-- State.toml : workspace manifest.
-- changelog.md : release and milestone notes.
+- `src/main.ds`
+  Startup checks, smoke paths, and self-test entrypoints.
 
-## Initial Module Plan
+## Design Notes
 
-- src/main.ds: project entrypoint and top-level orchestration.
-- src/contracts.ds: normative contract models and validators.
-- src/protocol.ds: wire/protocol semantics for external interfaces.
-- src/errors.ds: canonical error model and deterministic mapping.
-- src/tests.ds: local test harness entry surface.
-
-## Dependencies
-
-Current planned dependencies:
-
-- xdv-telemetry, xdv-kernel, xdv-runtime
-- dust runtime/toolchain packages as required by integration profile
-
-## Integration Contracts
-
-- Must preserve deterministic ordering semantics.
-- Must avoid implicit cross-domain state mutation.
-- Must emit structured metadata for replay and audit paths.
-- Must remain compatible with xdv-os build and boot/runtime contracts.
+- Replay is orchestration-faithful and excludes raw Q/Phi internal state.
+- Q/Phi trace metadata requires structured exposure mode.
+- Hash-chain verification is deterministic and tamper-evident.
+- Distributed merge uses stable order keys and deterministic tie-breaks.
 
 ## Build
 
+```bash
 dust check xdv-replay/src
+```
 
 ## Test
 
-dust test xdv-replay/tests
+```bash
+dust check xdv-replay/src/replay_tests.ds
+dust check xdv-replay/tests/replay_e2e.ds
+```
 
-## Milestones
+## Integration Contracts
 
-1. M1: scaffold + contract models.
-2. M2: core pipeline implementation.
-3. M3: deterministic behavior and fixture hardening.
-4. M4: xdv-os integration and conformance gating.
-
-## Notes
-
-This project is initialized as a skeleton template and intentionally starts with minimal source implementation.
+- Preserve global logical ordering semantics.
+- Preserve scheduler/resource decision equivalence.
+- Detect hash/order/resource/capability invariant violations deterministically.
+- Preserve isolation constraints by rejecting raw Q/Phi trace metadata.

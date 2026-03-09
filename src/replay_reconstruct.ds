@@ -1,0 +1,142 @@
+// File: replay_reconstruct.ds - This file is part of XDV
+// Copyright (c) 2026 Dust LLC, and Contributors
+// Description:
+//   xdv-replay: deterministic scheduler/resource/capability/fault reconstruction.
+
+forge XdvReplayReconstruct {
+
+    const STATUS_OK: UInt32 = 0;
+
+    const ALLOC_DENY: UInt64 = 0;
+    const ALLOC_ALLOW: UInt64 = 1;
+
+    const FAULT_ACTION_CONTINUE: UInt64 = 1;
+    const FAULT_ACTION_RETRY: UInt64 = 2;
+    const FAULT_ACTION_ROLLBACK: UInt64 = 3;
+    const FAULT_ACTION_HALT: UInt64 = 4;
+
+    proc K::scheduler_winner(proc_a_priority: UInt64, proc_a_id: UInt64, proc_b_priority: UInt64, proc_b_id: UInt64) {
+        if proc_a_id == 0 {
+            if proc_b_id == 0 {
+                return 0;
+            } else {
+                return proc_b_id;
+            }
+        } else {
+            if proc_b_id == 0 {
+                return proc_a_id;
+            } else {
+                if proc_a_priority > proc_b_priority {
+                    return proc_a_id;
+                } else {
+                    if proc_b_priority > proc_a_priority {
+                        return proc_b_id;
+                    } else {
+                        if proc_a_id <= proc_b_id {
+                            return proc_a_id;
+                        } else {
+                            return proc_b_id;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    proc K::verify_scheduler_decision(proc_a_priority: UInt64, proc_a_id: UInt64, proc_b_priority: UInt64, proc_b_id: UInt64, recorded_winner: UInt64) {
+        let reconstructed = scheduler_winner(proc_a_priority, proc_a_id, proc_b_priority, proc_b_id);
+        if reconstructed == recorded_winner {
+            return STATUS_OK;
+        } else {
+            return XdvReplayContracts::K::STATUS_REPLAY_MISMATCH;
+        }
+    }
+
+    proc K::resource_allocation_decision(total_resources: UInt64, already_allocated: UInt64, request_amount: UInt64) {
+        if request_amount == 0 {
+            return ALLOC_DENY;
+        } else {
+            let after_alloc = already_allocated + request_amount;
+            let conservation = XdvReplayContracts::K::resource_conservation_ok(total_resources, after_alloc);
+            if conservation == STATUS_OK {
+                return ALLOC_ALLOW;
+            } else {
+                return ALLOC_DENY;
+            }
+        }
+    }
+
+    proc K::verify_resource_decision(total_resources: UInt64, already_allocated: UInt64, request_amount: UInt64, recorded_decision: UInt64) {
+        let reconstructed = resource_allocation_decision(total_resources, already_allocated, request_amount);
+        if reconstructed == recorded_decision {
+            if recorded_decision == ALLOC_ALLOW {
+                let after_alloc = already_allocated + request_amount;
+                return XdvReplayContracts::K::resource_conservation_ok(total_resources, after_alloc);
+            } else {
+                return STATUS_OK;
+            }
+        } else {
+            return XdvReplayContracts::K::STATUS_RESOURCE_VIOLATION;
+        }
+    }
+
+    proc K::capability_decision(domain: UInt64, capability_scope: UInt64) {
+        return XdvReplayContracts::K::domain_allowed_by_capability(domain, capability_scope);
+    }
+
+    proc K::verify_capability_decision(domain: UInt64, capability_scope: UInt64, recorded_status: UInt32) {
+        let reconstructed = capability_decision(domain, capability_scope);
+        if reconstructed == recorded_status {
+            return STATUS_OK;
+        } else {
+            return XdvReplayContracts::K::STATUS_CAPABILITY_MISMATCH;
+        }
+    }
+
+    proc K::fault_escalation_action(fault_code: UInt64, severity: UInt64) {
+        if severity >= 5 {
+            return FAULT_ACTION_HALT;
+        } else {
+            if severity >= 4 {
+                return FAULT_ACTION_ROLLBACK;
+            } else {
+                if severity >= 3 {
+                    if fault_code == 1 {
+                        return FAULT_ACTION_RETRY;
+                    } else {
+                        return FAULT_ACTION_ROLLBACK;
+                    }
+                } else {
+                    return FAULT_ACTION_CONTINUE;
+                }
+            }
+        }
+    }
+
+    proc K::verify_fault_escalation(fault_code: UInt64, severity: UInt64, recorded_action: UInt64) {
+        let reconstructed = fault_escalation_action(fault_code, severity);
+        if reconstructed == recorded_action {
+            return STATUS_OK;
+        } else {
+            return XdvReplayContracts::K::STATUS_REPLAY_MISMATCH;
+        }
+    }
+
+    proc K::domain_transition_order_ok(prev_timestamp: UInt64, next_timestamp: UInt64) {
+        let p = XdvReplayContracts::K::is_timestamp_valid(prev_timestamp);
+        if p == STATUS_OK {
+            let n = XdvReplayContracts::K::is_timestamp_valid(next_timestamp);
+            if n == STATUS_OK {
+                if next_timestamp >= prev_timestamp {
+                    return STATUS_OK;
+                } else {
+                    return XdvReplayContracts::K::STATUS_ORDER_MISMATCH;
+                }
+            } else {
+                return n;
+            }
+        } else {
+            return p;
+        }
+    }
+}

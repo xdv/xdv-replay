@@ -1,2 +1,104 @@
-﻿# XDV Replay bootstrap surface
-# TODO: implement module entrypoint
+// File: main.ds - This file is part of XDV
+// Copyright (c) 2026 Dust LLC, and Contributors
+// Description:
+//   xdv-replay: top-level entrypoints for XDV-071.
+
+forge XdvReplayMain {
+
+    const STATUS_OK: UInt32 = 0;
+    const STATUS_BOOTSTRAP_FAILED: UInt32 = 1;
+
+    proc K::startup_contract_validation() {
+        let mode_ok = XdvReplayContracts::K::is_replay_mode_valid(XdvReplayContracts::K::MODE_FULL);
+        if mode_ok == STATUS_OK {
+            let domain_ok = XdvReplayContracts::K::is_domain_valid(XdvReplayContracts::K::DOMAIN_K);
+            if domain_ok == STATUS_OK {
+                let event_ok = XdvReplayContracts::K::is_event_type_valid(XdvReplayContracts::K::EVENT_SCHED_DECISION);
+                if event_ok == STATUS_OK {
+                    return STATUS_OK;
+                } else {
+                    return STATUS_BOOTSTRAP_FAILED;
+                }
+            } else {
+                return STATUS_BOOTSTRAP_FAILED;
+            }
+        } else {
+            return STATUS_BOOTSTRAP_FAILED;
+        }
+    }
+
+    proc K::smoke_trace_and_hash_chain() {
+        let h1 = XdvReplayTrace::K::trace_hash_next(0, 1, XdvReplayContracts::K::DOMAIN_K, 10, 1, 11, 21, XdvReplayContracts::K::EVENT_SCHED_DECISION, 77, 1000);
+        if h1 == 0 {
+            return STATUS_BOOTSTRAP_FAILED;
+        } else {
+            let verify = XdvReplayTrace::K::verify_trace_chain_pair(0, 0, h1, 1, XdvReplayContracts::K::DOMAIN_K, 10, 1, 11, 21, XdvReplayContracts::K::EVENT_SCHED_DECISION, 77, 1000);
+            if verify == STATUS_OK {
+                return STATUS_OK;
+            } else {
+                return STATUS_BOOTSTRAP_FAILED;
+            }
+        }
+    }
+
+    proc K::smoke_deterministic_reconstruction() {
+        let sched = XdvReplayReconstruct::K::verify_scheduler_decision(5, 100, 5, 101, 100);
+        if sched == STATUS_OK {
+            let resource = XdvReplayReconstruct::K::verify_resource_decision(10, 4, 3, XdvReplayReconstruct::K::ALLOC_ALLOW);
+            if resource == STATUS_OK {
+                let cap = XdvReplayReconstruct::K::verify_capability_decision(XdvReplayContracts::K::DOMAIN_Q, XdvReplayContracts::K::CAP_SCOPE_Q, STATUS_OK);
+                if cap == STATUS_OK {
+                    return STATUS_OK;
+                } else {
+                    return STATUS_BOOTSTRAP_FAILED;
+                }
+            } else {
+                return STATUS_BOOTSTRAP_FAILED;
+            }
+        } else {
+            return STATUS_BOOTSTRAP_FAILED;
+        }
+    }
+
+    proc K::smoke_equivalence_merge() {
+        let merge = XdvReplayDistributed::K::distributed_merge_token(500, 1, 7, 500, 2, 7);
+        if merge == 0 {
+            return STATUS_BOOTSTRAP_FAILED;
+        } else {
+            let order = XdvReplayDistributed::K::verify_distributed_order(500, 1, 7, 500, 2, 7);
+            if order == STATUS_OK {
+                return STATUS_OK;
+            } else {
+                return STATUS_BOOTSTRAP_FAILED;
+            }
+        }
+    }
+
+    proc K::run_self_tests() {
+        return XdvReplayTests::K::run_all_tests();
+    }
+
+    proc K::bootstrap() {
+        let s = startup_contract_validation();
+        if s == STATUS_OK {
+            let t = smoke_trace_and_hash_chain();
+            if t == STATUS_OK {
+                let r = smoke_deterministic_reconstruction();
+                if r == STATUS_OK {
+                    let e = smoke_equivalence_merge();
+                    if e == STATUS_OK {
+                        return STATUS_OK;
+                    } else {
+                        return STATUS_BOOTSTRAP_FAILED;
+                    }
+                } else {
+                    return STATUS_BOOTSTRAP_FAILED;
+                }
+            } else {
+                return STATUS_BOOTSTRAP_FAILED;
+            }
+        } else {
+            return STATUS_BOOTSTRAP_FAILED;
+        }
+    }
+}

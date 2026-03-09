@@ -1,0 +1,178 @@
+// File: replay_contracts.ds - This file is part of XDV
+// Copyright (c) 2026 Dust LLC, and Contributors
+// Description:
+//   xdv-replay: XDV-071 constants and invariant validation helpers.
+
+forge XdvReplayContracts {
+
+    const STATUS_OK: UInt32 = 0;
+    const STATUS_INVALID_DOMAIN: UInt32 = 1;
+    const STATUS_INVALID_EVENT: UInt32 = 2;
+    const STATUS_INVALID_MODE: UInt32 = 3;
+    const STATUS_INVALID_TIMESTAMP: UInt32 = 4;
+    const STATUS_HASH_MISMATCH: UInt32 = 5;
+    const STATUS_ORDER_MISMATCH: UInt32 = 6;
+    const STATUS_RESOURCE_VIOLATION: UInt32 = 7;
+    const STATUS_ISOLATION_VIOLATION: UInt32 = 8;
+    const STATUS_CAPABILITY_MISMATCH: UInt32 = 9;
+    const STATUS_REPLAY_MISMATCH: UInt32 = 10;
+
+    const DOMAIN_K: UInt64 = 0;
+    const DOMAIN_Q: UInt64 = 1;
+    const DOMAIN_PHI: UInt64 = 2;
+
+    const EVENT_SCHED_DECISION: UInt64 = 1;
+    const EVENT_RESOURCE_DECISION: UInt64 = 2;
+    const EVENT_DOMAIN_TRANSITION: UInt64 = 3;
+    const EVENT_CAPABILITY_CHECK: UInt64 = 4;
+    const EVENT_FAULT_ESCALATION: UInt64 = 5;
+    const EVENT_Q_MEASUREMENT: UInt64 = 6;
+    const EVENT_PHI_TRANSFORM: UInt64 = 7;
+
+    const MODE_FULL: UInt64 = 1;
+    const MODE_DOMAIN: UInt64 = 2;
+    const MODE_PROCESS: UInt64 = 3;
+    const MODE_CLUSTER: UInt64 = 4;
+
+    const CAP_SCOPE_K: UInt64 = 1;
+    const CAP_SCOPE_Q: UInt64 = 2;
+    const CAP_SCOPE_PHI: UInt64 = 4;
+    const CAP_SCOPE_ALL: UInt64 = 7;
+
+    const METADATA_STRUCTURED: UInt64 = 0;
+    const METADATA_RAW_STATE: UInt64 = 1;
+
+    proc K::is_domain_valid(domain: UInt64) {
+        if domain == DOMAIN_K {
+            return STATUS_OK;
+        } else {
+            if domain == DOMAIN_Q {
+                return STATUS_OK;
+            } else {
+                if domain == DOMAIN_PHI {
+                    return STATUS_OK;
+                } else {
+                    return STATUS_INVALID_DOMAIN;
+                }
+            }
+        }
+    }
+
+    proc K::is_event_type_valid(event_type: UInt64) {
+        if event_type == EVENT_SCHED_DECISION {
+            return STATUS_OK;
+        } else {
+            if event_type == EVENT_RESOURCE_DECISION {
+                return STATUS_OK;
+            } else {
+                if event_type == EVENT_DOMAIN_TRANSITION {
+                    return STATUS_OK;
+                } else {
+                    if event_type == EVENT_CAPABILITY_CHECK {
+                        return STATUS_OK;
+                    } else {
+                        if event_type == EVENT_FAULT_ESCALATION {
+                            return STATUS_OK;
+                        } else {
+                            if event_type == EVENT_Q_MEASUREMENT {
+                                return STATUS_OK;
+                            } else {
+                                if event_type == EVENT_PHI_TRANSFORM {
+                                    return STATUS_OK;
+                                } else {
+                                    return STATUS_INVALID_EVENT;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    proc K::is_replay_mode_valid(mode: UInt64) {
+        if mode == MODE_FULL {
+            return STATUS_OK;
+        } else {
+            if mode == MODE_DOMAIN {
+                return STATUS_OK;
+            } else {
+                if mode == MODE_PROCESS {
+                    return STATUS_OK;
+                } else {
+                    if mode == MODE_CLUSTER {
+                        return STATUS_OK;
+                    } else {
+                        return STATUS_INVALID_MODE;
+                    }
+                }
+            }
+        }
+    }
+
+    proc K::is_timestamp_valid(logical_timestamp: UInt64) {
+        if logical_timestamp == 0 {
+            return STATUS_INVALID_TIMESTAMP;
+        } else {
+            return STATUS_OK;
+        }
+    }
+
+    proc K::domain_allowed_by_capability(domain: UInt64, cap_scope: UInt64) {
+        let d = is_domain_valid(domain);
+        if d == STATUS_OK {
+            if cap_scope == CAP_SCOPE_ALL {
+                return STATUS_OK;
+            } else {
+                if domain == DOMAIN_K {
+                    if cap_scope == CAP_SCOPE_K {
+                        return STATUS_OK;
+                    } else {
+                        return STATUS_CAPABILITY_MISMATCH;
+                    }
+                } else {
+                    if domain == DOMAIN_Q {
+                        if cap_scope == CAP_SCOPE_Q {
+                            return STATUS_OK;
+                        } else {
+                            return STATUS_CAPABILITY_MISMATCH;
+                        }
+                    } else {
+                        if cap_scope == CAP_SCOPE_PHI {
+                            return STATUS_OK;
+                        } else {
+                            return STATUS_CAPABILITY_MISMATCH;
+                        }
+                    }
+                }
+            }
+        } else {
+            return d;
+        }
+    }
+
+    proc K::validate_metadata_exposure(domain: UInt64, metadata_mode: UInt64) {
+        let d = is_domain_valid(domain);
+        if d == STATUS_OK {
+            if domain == DOMAIN_K {
+                return STATUS_OK;
+            } else {
+                if metadata_mode == METADATA_STRUCTURED {
+                    return STATUS_OK;
+                } else {
+                    return STATUS_ISOLATION_VIOLATION;
+                }
+            }
+        } else {
+            return d;
+        }
+    }
+
+    proc K::resource_conservation_ok(total_resources: UInt64, allocated_resources: UInt64) {
+        if allocated_resources <= total_resources {
+            return STATUS_OK;
+        } else {
+            return STATUS_RESOURCE_VIOLATION;
+        }
+    }
+}
